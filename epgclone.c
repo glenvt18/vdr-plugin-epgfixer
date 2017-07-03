@@ -23,9 +23,11 @@ cEpgClone::~cEpgClone()
   free(dest_str);
 }
 
-void cEpgClone::CloneEvent(cEvent *Source, cEvent *Dest) {
+void cEpgClone::CopyEventData(const cEvent *Source, cEvent *Dest)
+{
   Dest->SetEventID(Source->EventID());
-  Dest->SetTableID(Source->TableID());
+  if (Source->TableID() > 0x4E) // for backwards compatibility, table ids less than 0x4E are never overwritten
+     Dest->SetTableID(Source->TableID());
   Dest->SetVersion(Source->Version());
   Dest->SetRunningStatus(Source->RunningStatus());
   Dest->SetTitle(Source->Title());
@@ -39,12 +41,18 @@ void cEpgClone::CloneEvent(cEvent *Source, cEvent *Dest) {
   Dest->SetComponents(components);
   uchar contents[MaxEventContents];
   for (int i = 0; i < MaxEventContents; ++i)
-      contents[i] = Source->Contents(i);
+     contents[i] = Source->Contents(i);
   Dest->SetContents(contents);
   Dest->SetParentalRating(Source->ParentalRating());
   Dest->SetStartTime(Source->StartTime());
   Dest->SetDuration(Source->Duration());
   Dest->SetVps(Source->Vps());
+}
+
+void cEpgClone::CloneEvent(cEvent *Source, cEvent *Dest) {
+  CopyEventData(Source, Dest);
+  // always copy TableID when cloning
+  Dest->SetTableID(Source->TableID());
   if (Source->Seen())
      Dest->SetSeen();
   tChannelID channelID;

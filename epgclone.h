@@ -25,6 +25,7 @@ public:
   using cListItem::Apply;
   virtual bool Apply(cEvent *Event);
   void SetFromString(char *string, bool Enabled);
+  static void CopyEventData(const cEvent *Source, cEvent *Dest);
 };
 
 // Global instance

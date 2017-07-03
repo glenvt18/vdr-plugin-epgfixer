@@ -12,6 +12,7 @@
 #include "config.h"
 #include "regexp.h"
 #include "tools.h"
+#include "epgclone.h"
 
 //
 // Original VDR bug fixes adapted from epg.c of VDR
@@ -428,7 +429,8 @@ public:
   cAddEventListItem(cEvent *Event, tChannelID ChannelID) { event = Event; channelID = ChannelID; }
   tChannelID GetChannelID() { return channelID; }
   cEvent *GetEvent() { return event; }
-  ~cAddEventListItem() { }
+  cEvent *MoveEvent() { cEvent *ret = event; event = NULL; return ret; }
+  ~cAddEventListItem() { if (event) delete event; }
 };
 
 class cAddEventThread : public cThread
@@ -489,9 +491,28 @@ void cAddEventThread::Action(void)
               else {
                  cSchedule *schedule = (cSchedule *)schedules->GetSchedule(chan, true);
                  if (schedule) {
-                    schedule->AddEvent(e->GetEvent());
+                    cEvent *event = (cEvent *)schedule->GetEvent(e->GetEvent()->EventID(), e->GetEvent()->StartTime());
+                    u_char Tid = e->GetEvent()->TableID();
+                    if (!event) {
+                       // new event
+                       event = e->MoveEvent();
+                       schedule->AddEvent(event);
+                       }
+                    else {
+                       // existing event
+                       cEpgClone::CopyEventData(e->GetEvent(), event);
+                       event->SetSeen();
+                       }
+                    //dsyslog("==TableID=%d RS=%d", event->TableID(), event->RunningStatus());
+                    // we trust only the present/following info on the actual TS
+                    if (Tid == 0x4E && event->RunningStatus() >= SI::RunningStatusNotRunning)
+                    {
+                        //dsyslog("==SetRunningStatus(%d)", event->RunningStatus());
+                       schedule->SetRunningStatus(event, event->RunningStatus(), chan);
+                    }
+                    // TODO ?Those are called in cEIT::cEIT()
                     EpgHandlers.SortSchedule(schedule);
-                    EpgHandlers.DropOutdated(schedule, e->GetEvent()->StartTime(), e->GetEvent()->EndTime(), e->GetEvent()->TableID(), e->GetEvent()->Version());
+                    EpgHandlers.DropOutdated(schedule, event->StartTime(), event->EndTime(), event->TableID(), event->Version());
                     }
                  }
               list->Del(e);
